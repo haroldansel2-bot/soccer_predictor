@@ -22,13 +22,22 @@ UTC = timezone.utc
 T0 = datetime(2026, 8, 21, 19, 0, tzinfo=UTC)
 
 
-def identity(fixture_id=None, *, provider_ids=(), day_offset=0, round_id="round-1", competition="eng.1"):
+def identity(
+    fixture_id=None,
+    *,
+    provider_ids=(),
+    day_offset=0,
+    round_id="round-1",
+    competition="eng.1",
+    home_team_id="team-liv",
+    away_team_id="team-ars",
+):
     return FixtureIdentityEvidence(
         fixture_id=fixture_id,
         competition_id=competition,
         season_start_year=2026,
-        home_team_id="team-liv",
-        away_team_id="team-ars",
+        home_team_id=home_team_id,
+        away_team_id=away_team_id,
         round_id=round_id,
         kickoff_utc=T0 + timedelta(days=day_offset),
         provider_ids=tuple(provider_ids),
@@ -89,7 +98,8 @@ def test_exact_provider_id_detects_duplicate_across_different_sources_only_if_na
     existing = identity(FIXTURE_A, provider_ids=(espn_id,))
     incoming_same = identity(provider_ids=(espn_id,))
     incoming_other_provider = identity(
-        provider_ids=(ProviderFixtureID("fotmob", "eng.1", "evt-77"),)
+        provider_ids=(ProviderFixtureID("fotmob", "eng.1", "evt-77"),),
+        home_team_id="team-che",
     )
     assert detect_fixture_duplicate(incoming_same, [existing]).status == "duplicate"
     assert detect_fixture_duplicate(incoming_other_provider, [existing]).status == "distinct"
@@ -148,11 +158,14 @@ def test_matching_internal_id_with_ambiguous_provider_mapping_is_ambiguous():
     assert result.reason == "provider-qualified ID points to multiple fixtures"
 
 
-def test_provider_id_mapping_to_two_internal_fixtures_is_ambiguous():
+def test_provider_id_reused_in_same_namespace_for_different_fixtures_is_ambiguous():
     shared_id = ProviderFixtureID("espn", "eng.1", "evt-77")
     result = detect_fixture_duplicate(
         identity(provider_ids=(shared_id,)),
-        [identity(FIXTURE_A, provider_ids=(shared_id,)), identity(FIXTURE_B, provider_ids=(shared_id,))],
+        [
+            identity(FIXTURE_A, provider_ids=(shared_id,)),
+            identity(FIXTURE_B, provider_ids=(shared_id,), home_team_id="team-che"),
+        ],
     )
     assert result.status == "ambiguous"
     assert result.fixture_ids == (FIXTURE_A, FIXTURE_B)
